@@ -1,0 +1,94 @@
+====================================================
+  课表智能助手 - GitHub + Render 部署
+  快速开始
+====================================================
+
+【项目位置】
+/home/xing/课表智能体-GitHub 版/
+
+【文件说明】
+app.py              - Flask 主程序
+nlp_parser.py       - NLP 解析模块
+requirements.txt    - Python 依赖
+render.yaml         - Render 配置
+README.md           - 项目文档
+部署指南.md          - 详细部署教程
+deploy_to_render.sh - 自动部署脚本
+templates/          - HTML 页面
+  ├── index.html    - 首页（上传课表）
+  └── chat.html     - 聊天页面
+
+====================================================
+【部署步骤 - 3 步完成】
+====================================================
+
+步骤 1: 推送到 GitHub
+------------------------------------------
+cd /home/xing/课表智能体-GitHub 版
+./deploy_to_render.sh
+
+按提示输入:
+- GitHub 用户名
+- GitHub Token (https://github.com/settings/tokens)
+
+步骤 2: 在 Render 创建服务
+------------------------------------------
+1. 访问 https://render.com
+2. 登录/注册 (可用 GitHub 账号)
+3. New + → Web Service
+4. 连接刚才推送的仓库
+
+步骤 3: 配置并部署
+------------------------------------------
+Build Command:  pip install -r requirements.txt
+Start Command:  gunicorn app:app --bind 0.0.0.0:$PORT
+Region:         Singapore
+Plan:           Free
+
+点击 "Create Web Service"
+等待 3-5 分钟即可访问!
+
+====================================================
+【访问地址】
+====================================================
+
+部署成功后，Render 会提供:
+https://teacher-schedule-assistant-xxxx.onrender.com
+
+====================================================
+【本地测试】
+====================================================
+
+cd /home/xing/课表智能体-GitHub 版
+pip install -r requirements.txt
+python app.py
+
+访问：http://localhost:5000
+
+====================================================
+【重要提示】
+====================================================
+
+1. GitHub Token 获取:
+   https://github.com/settings/tokens
+   勾选 "repo" 权限
+
+2. Render 免费计划:
+   - 512MB 内存
+   - 15 分钟无访问会休眠
+   - 首次访问需 30-50 秒唤醒
+
+3. 课表数据:
+   - 免费计划不持久化存储
+   - 重启后需重新上传课表
+   - 建议保存好 Excel 文件
+
+====================================================
+【技术支持】
+====================================================
+
+详细教程：查看 部署指南.md
+项目文档：查看 README.md
+Render 文档：https://render.com/docs
+
+====================================================
