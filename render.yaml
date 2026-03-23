@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: teacher-schedule-assistant
+    name: CourseQuery
     env: python
     region: singapore
     plan: free
