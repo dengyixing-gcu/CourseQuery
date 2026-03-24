@@ -9,12 +9,9 @@ env/
 .venv/
 ENV/
 
-# 数据文件
-data/*.xlsx
-data/*.xls
+# 数据文件 - 保留 Excel 文件
 data/schedule_cache.json
-*.xlsx
-*.xls
+*.csv
 
 # IDE
 .vscode/

@@ -169,6 +169,10 @@ def generate_response(result, schedule):
     elif lesson is not None:
         filtered_schedule = [c for c in schedule if c['start_lesson'] <= lesson <= c['end_lesson']]
     
+    # 根据教师过滤（优先级高）
+    if teacher:
+        filtered_schedule = [c for c in filtered_schedule if c['teacher'] == teacher]
+    
     # 根据日期/星期过滤
     if date:
         try:
@@ -211,6 +215,8 @@ def generate_response(result, schedule):
     
     # 正向查询
     if not filtered_schedule:
+        if teacher:
+            return f"未找到{teacher}老师的课程安排。"
         if time_desc:
             return f"{time_desc}暂无课程安排。"
         return "暂无课程安排。"
@@ -220,7 +226,9 @@ def generate_response(result, schedule):
         for c in filtered_schedule
     ])
     
-    if time_desc:
+    if teacher:
+        return f"{teacher}老师的课程：\n{courses_info}"
+    elif time_desc:
         return f"{time_desc}的课程：\n{courses_info}"
     else:
         return f"共有 {len(filtered_schedule)} 门课程：\n{courses_info}"

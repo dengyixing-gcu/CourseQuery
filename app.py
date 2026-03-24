@@ -12,12 +12,9 @@ from nlp_parser import parse_query, generate_response, get_suggestion
 app = Flask(__name__)
 
 # 配置
-app.config['UPLOAD_FOLDER'] = 'data'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-
-# 全局变量存储课表数据
-schedule_data = None
-schedule_cache_file = 'data/schedule_cache.json'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, '教师课表 1.xlsx')
+CACHE_FILE = os.path.join(BASE_DIR, 'data', 'schedule_cache.json')
 
 def load_schedule_from_excel(file_path):
     """从 Excel 文件加载课表数据"""
@@ -104,29 +101,21 @@ def parse_weeks(week_str):
 
 def get_or_load_schedule():
     """获取或加载课表数据"""
-    global schedule_data
-    
-    if schedule_data is not None:
-        return schedule_data
-    
     # 尝试从缓存加载
-    if os.path.exists(schedule_cache_file):
-        with open(schedule_cache_file, 'r', encoding='utf-8') as f:
-            schedule_data = json.load(f)
-            return schedule_data
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
     
-    # 尝试从 Excel 加载
-    excel_file = os.path.join(app.config['UPLOAD_FOLDER'], '教师课表.xlsx')
-    if os.path.exists(excel_file):
-        schedule_data = load_schedule_from_excel(excel_file)
-        if schedule_data:
-            with open(schedule_cache_file, 'w', encoding='utf-8') as f:
-                json.dump(schedule_data, f, ensure_ascii=False)
-            return schedule_data
+    # 从 Excel 加载
+    schedule = load_schedule_from_excel(DATA_FILE)
+    if schedule:
+        # 保存缓存
+        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(schedule, f, ensure_ascii=False)
+        return schedule
     
-    # 返回空列表
-    schedule_data = []
-    return schedule_data
+    return []
 
 @app.route('/')
 def index():
