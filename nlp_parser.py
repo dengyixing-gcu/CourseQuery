@@ -32,6 +32,7 @@ def parse_query(query, teachers=None):
         'date': None,
         'weekday': None,
         'lesson': None,
+        'time_period': None,
         'original_query': query
     }
     
@@ -43,8 +44,14 @@ def parse_query(query, teachers=None):
     "teacher": "教师姓名或 null",
     "date": "YYYY-MM-DD 格式或 null", 
     "weekday": 0-6 数字或 null (0=周一，6=周日),
-    "lesson": 节次数字或 null
+    "lesson": 节次数字或 null,
+    "time_period": "morning|afternoon|evening|all 或 null"
 }
+
+时间说明：
+- morning: 上午 (1-4 节)
+- afternoon: 下午 (5-8 节)
+- evening: 晚上 (9-12 节)
 
 今天是 2026 年 3 月 24 日，星期二。学期从 2026 年 3 月 2 日开始。"""
 
@@ -122,20 +129,66 @@ def generate_response(result, schedule):
     """
     intent = result['intent']
     query = result.get('original_query', '')
+    time_period = result.get('time_period')
+    lesson = result.get('lesson')
+    weekday = result.get('weekday')
+    date = result.get('date')
     
     if not schedule:
         return "暂无课表数据，请先上传课表文件。"
     
-    schedule_context = "\n".join([
-        f"{c['teacher']} - {c['course']} - 星期{['一','二','三','四','五','六','日'][c['weekday']]} 第{c['start_lesson']}-{c['end_lesson']}节 - {c['location']}"
-        for c in schedule[:50]
-    ])
+    # 根据时间段过滤课表
+    filtered_schedule = schedule
+    
+    if time_period == 'morning':
+        filtered_schedule = [c for c in schedule if c['end_lesson'] <= 4]
+    elif time_period == 'afternoon':
+        filtered_schedule = [c for c in schedule if c['start_lesson'] >= 5 and c['end_lesson'] <= 8]
+    elif time_period == 'evening':
+        filtered_schedule = [c for c in schedule if c['start_lesson'] >= 9]
+    elif lesson is not None:
+        filtered_schedule = [c for c in schedule if c['start_lesson'] <= lesson <= c['end_lesson']]
+    
+    # 根据日期/星期过滤
+    if date:
+        try:
+            date_obj = datetime.strptime(date, '%Y-%m-%d')
+            week = (date_obj - SEMESTER_START).days // 7 + 1
+            query_weekday = date_obj.weekday()
+            filtered_schedule = [
+                c for c in filtered_schedule 
+                if c['weekday'] == query_weekday and week in c['weeks']
+            ]
+        except:
+            pass
+    elif weekday is not None:
+        filtered_schedule = [c for c in filtered_schedule if c['weekday'] == weekday]
+    
+    # 构建课表上下文
+    if filtered_schedule:
+        schedule_context = "\n".join([
+            f"{c['teacher']} - {c['course']} - 星期{['一','二','三','四','五','六','日'][c['weekday']]} 第{c['start_lesson']}-{c['end_lesson']}节 - {c['location']}"
+            for c in filtered_schedule[:50]
+        ])
+    else:
+        schedule_context = "无相关课程"
+    
+    time_desc = ""
+    if time_period == 'morning':
+        time_desc = "上午"
+    elif time_period == 'afternoon':
+        time_desc = "下午"
+    elif time_period == 'evening':
+        time_desc = "晚上"
+    elif lesson:
+        time_desc = f"第{lesson}节"
     
     system_prompt = f"""你是课表智能助手，根据以下课表数据回答用户问题。
 
-课表数据：
+课表数据（已按查询条件过滤{time_desc}）：
 {schedule_context}
 
+如果课表数据为空，请明确告知用户没有相关课程。
 请简洁、友好地回答用户问题。"""
 
     try:
