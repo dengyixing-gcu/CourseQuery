@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 
 client = OpenAI(
-    api_key="sk-sp-2d79aaad48c84a218ae03d48c5bb5ae2",
+    api_key=os.environ.get("DASHSCOPE_API_KEY"),
     base_url="https://coding.dashscope.aliyuncs.com/v1"
 )
 
