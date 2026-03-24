@@ -28,10 +28,15 @@ def parse_query(query, teachers=None):
         'weekday': None,
         'lesson': None,
         'time_period': None,
+        'is_negative': False,
         'original_query': query
     }
     
     query = query.strip()
+    
+    # 检测否定查询（没课、没有、不教、空闲）
+    if any(word in query for word in ['没课', '没有课', '不教', '空闲', '没事', '没安排']):
+        result['is_negative'] = True
     
     # 检测时间段（上午/下午/晚上）
     if any(word in query for word in ['上午', '早上', '早晨']):
@@ -144,9 +149,13 @@ def generate_response(result, schedule):
     weekday = result.get('weekday')
     date = result.get('date')
     teacher = result.get('teacher')
+    is_negative = result.get('is_negative', False)
     
     if not schedule:
         return "暂无课表数据，请先上传课表文件。"
+    
+    # 获取所有老师
+    all_teachers = sorted(set(c['teacher'] for c in schedule))
     
     # 根据时间段过滤课表
     filtered_schedule = schedule
@@ -159,10 +168,6 @@ def generate_response(result, schedule):
         filtered_schedule = [c for c in schedule if c['start_lesson'] >= 9]
     elif lesson is not None:
         filtered_schedule = [c for c in schedule if c['start_lesson'] <= lesson <= c['end_lesson']]
-    
-    # 根据教师过滤
-    if teacher:
-        filtered_schedule = [c for c in filtered_schedule if c['teacher'] == teacher]
     
     # 根据日期/星期过滤
     if date:
@@ -179,6 +184,9 @@ def generate_response(result, schedule):
     elif weekday is not None:
         filtered_schedule = [c for c in filtered_schedule if c['weekday'] == weekday]
     
+    # 获取该时间段有课的老师
+    teachers_with_class = set(c['teacher'] for c in filtered_schedule)
+    
     # 生成回复
     time_desc = ""
     if time_period == 'morning':
@@ -190,6 +198,18 @@ def generate_response(result, schedule):
     elif lesson:
         time_desc = f"第{lesson}节"
     
+    # 处理否定查询（哪些老师没课）
+    if is_negative:
+        teachers_without_class = [t for t in all_teachers if t not in teachers_with_class]
+        if teachers_without_class:
+            if len(teachers_without_class) > 20:
+                return f"{time_desc}没课的老师较多（共{len(teachers_without_class)}位），不一一列举。"
+            teachers_info = '、'.join(teachers_without_class)
+            return f"{time_desc}没课的老师：{teachers_info}"
+        else:
+            return f"{time_desc}所有老师都有课安排。"
+    
+    # 正向查询
     if not filtered_schedule:
         if time_desc:
             return f"{time_desc}暂无课程安排。"
