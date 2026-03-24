@@ -5,12 +5,6 @@ import os
 import re
 import json
 from datetime import datetime, timedelta
-from openai import OpenAI
-
-client = OpenAI(
-    api_key=os.environ.get("DASHSCOPE_API_KEY"),
-    base_url="https://coding.dashscope.aliyuncs.com/v1"
-)
 
 SEMESTER_START = datetime(2026, 3, 2)
 WEEKDAY_MAP = {
@@ -25,7 +19,7 @@ WEEKDAY_MAP = {
 
 def parse_query(query, teachers=None):
     """
-    解析用户查询 - 使用千问大模型
+    解析用户查询 - 基于规则
     """
     result = {
         'intent': 'unknown',
@@ -39,36 +33,52 @@ def parse_query(query, teachers=None):
     
     query = query.strip()
     
-    system_prompt = """你是一个课表查询助手，请分析用户输入的意图，返回 JSON 格式：
-{
-    "intent": "query_teacher|query_date|query_weekday|query_schedule|query_info|help|unknown",
-    "teacher": "教师姓名或 null",
-    "date": "YYYY-MM-DD 格式或 null", 
-    "weekday": 0-6 数字或 null (0=周一，6=周日),
-    "lesson": 节次数字或 null,
-    "time_period": "morning|afternoon|evening|all 或 null"
-}
-
-时间说明：
-- morning: 上午 (1-4 节)
-- afternoon: 下午 (5-8 节)
-- evening: 晚上 (9-12 节)
-
-今天是 2026 年 3 月 24 日，星期二。学期从 2026 年 3 月 2 日开始。"""
-
-    try:
-        response = client.chat.completions.create(
-            model="qwen-coding-plan",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"教师列表：{teachers}\n用户查询：{query}"}
-            ],
-            temperature=0.1
-        )
-        llm_result = json.loads(response.choices[0].message.content)
-        result.update(llm_result)
-    except Exception as e:
-        pass
+    # 检测时间段（上午/下午/晚上）
+    if any(word in query for word in ['上午', '早上', '早晨']):
+        result['time_period'] = 'morning'
+    elif any(word in query for word in ['下午', '午后']):
+        result['time_period'] = 'afternoon'
+    elif any(word in query for word in ['晚上', '晚间', '夜晚']):
+        result['time_period'] = 'evening'
+    
+    # 检测教师名称
+    if teachers:
+        for teacher in teachers:
+            if teacher in query:
+                result['teacher'] = teacher
+                result['intent'] = 'query_teacher'
+                break
+    
+    # 检测日期
+    date = extract_date(query)
+    if date:
+        result['date'] = date
+        if result['intent'] == 'unknown':
+            result['intent'] = 'query_date'
+    
+    # 检测星期
+    weekday = extract_weekday(query)
+    if weekday is not None:
+        result['weekday'] = weekday
+        if result['intent'] == 'unknown':
+            result['intent'] = 'query_weekday'
+    
+    # 检测节次
+    lesson = extract_lesson(query)
+    if lesson:
+        result['lesson'] = lesson
+    
+    # 检测查询类型
+    if any(word in query for word in ['课表', '课程', '上课']):
+        result['intent'] = 'query_schedule'
+    elif any(word in query for word in ['时间', '地点', '教室']):
+        result['intent'] = 'query_info'
+    elif any(word in query for word in ['老师', '教师']):
+        result['intent'] = 'query_teacher'
+    elif any(word in query for word in ['班级', '学生']):
+        result['intent'] = 'query_class'
+    elif any(word in query for word in ['帮助', '帮忙', '怎么用']):
+        result['intent'] = 'help'
     
     return result
 
@@ -126,14 +136,14 @@ def extract_lesson(text):
 
 def generate_response(result, schedule):
     """
-    根据解析结果生成回复 - 使用千问大模型
+    根据解析结果生成回复 - 基于规则
     """
     intent = result['intent']
-    query = result.get('original_query', '')
     time_period = result.get('time_period')
     lesson = result.get('lesson')
     weekday = result.get('weekday')
     date = result.get('date')
+    teacher = result.get('teacher')
     
     if not schedule:
         return "暂无课表数据，请先上传课表文件。"
@@ -150,6 +160,10 @@ def generate_response(result, schedule):
     elif lesson is not None:
         filtered_schedule = [c for c in schedule if c['start_lesson'] <= lesson <= c['end_lesson']]
     
+    # 根据教师过滤
+    if teacher:
+        filtered_schedule = [c for c in filtered_schedule if c['teacher'] == teacher]
+    
     # 根据日期/星期过滤
     if date:
         try:
@@ -165,15 +179,7 @@ def generate_response(result, schedule):
     elif weekday is not None:
         filtered_schedule = [c for c in filtered_schedule if c['weekday'] == weekday]
     
-    # 构建课表上下文
-    if filtered_schedule:
-        schedule_context = "\n".join([
-            f"{c['teacher']} - {c['course']} - 星期{['一','二','三','四','五','六','日'][c['weekday']]} 第{c['start_lesson']}-{c['end_lesson']}节 - {c['location']}"
-            for c in filtered_schedule[:50]
-        ])
-    else:
-        schedule_context = "无相关课程"
-    
+    # 生成回复
     time_desc = ""
     if time_period == 'morning':
         time_desc = "上午"
@@ -184,26 +190,20 @@ def generate_response(result, schedule):
     elif lesson:
         time_desc = f"第{lesson}节"
     
-    system_prompt = f"""你是课表智能助手，根据以下课表数据回答用户问题。
-
-课表数据（已按查询条件过滤{time_desc}）：
-{schedule_context}
-
-如果课表数据为空，请明确告知用户没有相关课程。
-请简洁、友好地回答用户问题。"""
-
-    try:
-        response = client.chat.completions.create(
-            model="qwen-coding-plan",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ],
-            temperature=0.3
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"抱歉，处理查询时出错：{str(e)}"
+    if not filtered_schedule:
+        if time_desc:
+            return f"{time_desc}暂无课程安排。"
+        return "暂无课程安排。"
+    
+    courses_info = '\n'.join([
+        f"- {c['teacher']} - {c['course']} 星期{['一','二','三','四','五','六','日'][c['weekday']]} 第{c['start_lesson']}-{c['end_lesson']}节 {c['location']}"
+        for c in filtered_schedule
+    ])
+    
+    if time_desc:
+        return f"{time_desc}的课程：\n{courses_info}"
+    else:
+        return f"共有 {len(filtered_schedule)} 门课程：\n{courses_info}"
 
 def get_suggestion(result):
     """获取建议的后续问题"""
