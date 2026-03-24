@@ -1,6 +1,7 @@
 """
 自然语言解析模块 - 课表智能助手
 """
+import os
 import re
 import json
 from datetime import datetime, timedelta
