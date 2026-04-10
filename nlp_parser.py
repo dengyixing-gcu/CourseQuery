@@ -53,6 +53,10 @@ def parse_query(query, teachers=None):
                 result['teacher'] = teacher
                 result['intent'] = 'query_teacher'
                 break
+        
+        # 如果查询中包含"老师"但未匹配到具体老师，标记为无效教师查询
+        if '老师' in query and not result['teacher']:
+            result['intent'] = 'query_teacher_invalid'
     
     # 检测日期
     date = extract_date(query)
@@ -73,17 +77,18 @@ def parse_query(query, teachers=None):
     if lesson:
         result['lesson'] = lesson
     
-    # 检测查询类型
-    if any(word in query for word in ['课表', '课程', '上课']):
-        result['intent'] = 'query_schedule'
-    elif any(word in query for word in ['时间', '地点', '教室']):
-        result['intent'] = 'query_info'
-    elif any(word in query for word in ['老师', '教师']):
-        result['intent'] = 'query_teacher'
-    elif any(word in query for word in ['班级', '学生']):
-        result['intent'] = 'query_class'
-    elif any(word in query for word in ['帮助', '帮忙', '怎么用']):
-        result['intent'] = 'help'
+    # 检测查询类型（优先级低于教师匹配）
+    if result['intent'] == 'unknown':
+        if any(word in query for word in ['课表', '课程', '上课']):
+            result['intent'] = 'query_schedule'
+        elif any(word in query for word in ['时间', '地点', '教室']):
+            result['intent'] = 'query_info'
+        elif any(word in query for word in ['老师', '教师']):
+            result['intent'] = 'query_teacher'
+        elif any(word in query for word in ['班级', '学生']):
+            result['intent'] = 'query_class'
+        elif any(word in query for word in ['帮助', '帮忙', '怎么用']):
+            result['intent'] = 'help'
     
     return result
 
@@ -212,6 +217,18 @@ def generate_response(result, schedule):
             return f"{time_desc}没课的老师：{teachers_info}"
         else:
             return f"{time_desc}所有老师都有课安排。"
+    
+    # 检查教师是否存在
+    if teacher and teacher not in all_teachers:
+        return f"没有找到名为\"{teacher}\"的老师。"
+    
+    # 处理无效教师查询（查询老师但未匹配到具体老师）
+    if intent == 'query_teacher_invalid':
+        return "未找到该老师，请输入正确的老师姓名。"
+    
+    # 处理查询老师但没有指定具体老师的情况
+    if intent == 'query_teacher' and not teacher:
+        return "请输入要查询的老师姓名。"
     
     # 正向查询
     if not filtered_schedule:
