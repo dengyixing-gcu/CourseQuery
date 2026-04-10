@@ -170,39 +170,6 @@ def api_teacher_schedule(name):
     teacher_schedule = [item for item in schedule if item['teacher'] == name]
     return jsonify(teacher_schedule)
 
-@app.route('/api/upload', methods=['POST'])
-def api_upload():
-    """上传课表 Excel 文件"""
-    global schedule_data
-    
-    if 'file' not in request.files:
-        return jsonify({'error': '没有文件'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': '文件名为空'}), 400
-    
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        return jsonify({'error': '只支持 Excel 文件'}), 400
-    
-    # 保存文件
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], '教师课表.xlsx')
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    file.save(file_path)
-    
-    # 重新加载课表
-    schedule_data = load_schedule_from_excel(file_path)
-    
-    # 更新缓存
-    if schedule_data:
-        with open(schedule_cache_file, 'w', encoding='utf-8') as f:
-            json.dump(schedule_data, f, ensure_ascii=False)
-    
-    return jsonify({
-        'success': True,
-        'message': f'成功加载 {len(schedule_data)} 条课表记录'
-    })
-
 @app.route('/health')
 def health():
     """健康检查端点（用于 Render）"""

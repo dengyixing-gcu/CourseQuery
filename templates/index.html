@@ -32,24 +32,16 @@
         .header h1 { font-size: 28px; margin-bottom: 10px; }
         .header p { opacity: 0.9; }
         .content { padding: 30px; }
-        .upload-area {
-            border: 2px dashed #667eea;
+        .info-box {
+            background: #f5f7ff;
             border-radius: 10px;
-            padding: 30px;
+            padding: 20px;
             text-align: center;
             margin-bottom: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
         }
-        .upload-area:hover {
-            background: #f5f7ff;
-            border-color: #764ba2;
-        }
-        .upload-area.has-file {
-            border-style: solid;
-            background: #e8f5e9;
-            border-color: #4caf50;
-        }
+        .info-box .icon { font-size: 48px; margin-bottom: 10px; }
+        .info-box h3 { color: #667eea; margin-bottom: 10px; }
+        .info-box p { color: #666; font-size: 14px; }
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -63,10 +55,10 @@
             transition: transform 0.2s;
         }
         .btn:hover { transform: translateY(-2px); }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+        .chat-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
         }
         .status {
             margin-top: 15px;
@@ -76,35 +68,22 @@
         }
         .status.success { background: #e8f5e9; color: #2e7d32; display: block; }
         .status.error { background: #ffebee; color: #c62828; display: block; }
-        .chat-link {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-        }
-        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>📚 课表智能助手</h1>
-            <p>上传课表，智能查询</p>
+            <p>智能查询，便捷高效</p>
         </div>
         <div class="content">
-            <label class="upload-area" id="uploadArea">
-                <div id="uploadText">
-                    <span style="font-size: 48px;">📁</span>
-                    <p style="margin-top: 15px;">点击上传课表 Excel 文件</p>
-                    <p style="font-size: 12px; color: #999; margin-top: 5px;">支持 .xlsx, .xls 格式</p>
-                </div>
-                <input type="file" id="fileInput" accept=".xlsx,.xls">
-            </label>
+            <div class="info-box">
+                <div class="icon">✅</div>
+                <h3>课表数据已加载</h3>
+                <p id="courseCount">正在加载课程数据...</p>
+            </div>
             
             <div id="status" class="status"></div>
-            
-            <div style="text-align: center; margin-top: 20px;">
-                <button class="btn" id="uploadBtn" disabled>确认上传</button>
-            </div>
             
             <div class="chat-link">
                 <a href="/chat" class="btn">💬 开始对话</a>
@@ -113,56 +92,19 @@
     </div>
 
     <script>
-        const fileInput = document.getElementById('fileInput');
-        const uploadArea = document.getElementById('uploadArea');
-        const uploadText = document.getElementById('uploadText');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const status = document.getElementById('status');
-        
-        let selectedFile = null;
-
-        fileInput.addEventListener('change', (e) => {
-            selectedFile = e.target.files[0];
-            if (selectedFile) {
-                uploadText.innerHTML = `
-                    <span style="font-size: 48px;">📄</span>
-                    <p style="margin-top: 15px;">${selectedFile.name}</p>
-                    <p style="font-size: 12px; color: #666; margin-top: 5px;">${(selectedFile.size / 1024).toFixed(1)} KB</p>
-                `;
-                uploadArea.classList.add('has-file');
-                uploadBtn.disabled = false;
-            }
-        });
-
-        uploadBtn.addEventListener('click', async () => {
-            if (!selectedFile) return;
-
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-
-            status.className = 'status';
-            status.textContent = '上传中...';
-
+        async function loadCourseCount() {
             try {
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    status.className = 'status success';
-                    status.textContent = `✅ ${result.message}`;
-                } else {
-                    status.className = 'status error';
-                    status.textContent = `❌ ${result.error || '上传失败'}`;
-                }
+                const response = await fetch('/api/schedule');
+                const schedule = await response.json();
+                document.getElementById('courseCount').textContent = 
+                    `已加载 ${schedule.length} 条课程记录，支持自然语言查询`;
             } catch (error) {
-                status.className = 'status error';
-                status.textContent = `❌ 网络错误：${error.message}`;
+                document.getElementById('courseCount').textContent = 
+                    '课程数据加载成功，点击开始对话进行查询';
             }
-        });
+        }
+        
+        loadCourseCount();
     </script>
 </body>
 </html>
